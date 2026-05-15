@@ -25,6 +25,7 @@ internal class DataChannelOverIChannel : IChannel
     private byte[]? _currentBuffer;
     private int _currentOffset;
     private int _closed;
+    private int _finSent;
 
     public DataChannelOverIChannel(RTCDataChannel dataChannel)
     {
@@ -112,7 +113,22 @@ internal class DataChannelOverIChannel : IChannel
 
     public ValueTask<IOResult> WriteEofAsync(CancellationToken token = default)
     {
-        Complete();
+        // Signal the local half-close: send a zero-length message as a FIN sentinel.
+        // We do NOT call Complete() here — the channel must stay open to drain any
+        // remaining inbound data from the remote before fully closing.
+        if (Interlocked.Exchange(ref _finSent, 1) == 0)
+        {
+            try
+            {
+                _dataChannel.send(Array.Empty<byte>());
+            }
+            catch
+            {
+                // If the channel is already gone, treat as closed.
+                Complete();
+            }
+        }
+
         return ValueTask.FromResult(IOResult.Ok);
     }
 
@@ -124,8 +140,10 @@ internal class DataChannelOverIChannel : IChannel
 
     private void OnMessage(RTCDataChannel dc, DataChannelPayloadProtocols protocol, byte[] data)
     {
+        // A zero-length message is the remote's FIN sentinel — treat it as stream end.
         if (data.Length == 0)
         {
+            _incoming.Writer.TryComplete();
             return;
         }
 

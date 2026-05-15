@@ -36,7 +36,11 @@ public class WebRtcDirectMultiaddrTests
     public void Parse_ThrowsOnMalformedMultihash()
     {
         string malformedMultihash = Multibase.Encode(MultibaseEncoding.Base64Url, [0x01, 0x02, 0x03]);
-        Multiaddress addr = Multiaddress.Decode($"/ip4/127.0.0.1/udp/9999/webrtc-direct/certhash/{malformedMultihash}");
-        Assert.Throws<FormatException>(() => WebRtcDirectMultiaddr.Parse(addr));
+        // With our hardened Certhash.Decode, malformed multihash bytes now cause
+        // MultiaddressException to be raised during Multiaddress.Decode itself —
+        // i.e., at address-parse time, before WebRtcDirectMultiaddr.Parse is called.
+        // This is stricter and better: we reject bad addresses as early as possible.
+        Assert.Throws<Nethermind.Libp2p.Core.Exceptions.MultiaddressException>(
+            () => Multiaddress.Decode($"/ip4/127.0.0.1/udp/9999/webrtc-direct/certhash/{malformedMultihash}"));
     }
 }
