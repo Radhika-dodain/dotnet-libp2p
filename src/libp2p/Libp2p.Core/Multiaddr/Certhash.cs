@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 using Multiformats.Base;
+using Multiformats.Hash;
+using Nethermind.Libp2p.Core.Exceptions;
+using System;
 
 namespace Multiformats.Address.Protocols;
 
@@ -22,11 +25,31 @@ public class Certhash : MultiaddressProtocol
 
     public override void Decode(string value)
     {
-        Value = Multibase.Decode(value, out MultibaseEncoding _);
+        try
+        {
+            byte[] bytes = Multibase.Decode(value, out MultibaseEncoding _);
+            Decode(bytes);
+        }
+        catch (MultiaddressException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new MultiaddressException($"Invalid certhash format: {ex.Message}");
+        }
     }
 
     public override void Decode(byte[] bytes)
     {
+        try
+        {
+            Multihash.Decode(bytes);
+        }
+        catch (Exception ex)
+        {
+            throw new MultiaddressException($"Invalid certhash: must be a valid multihash. {ex.Message}");
+        }
         Value = bytes;
     }
 
