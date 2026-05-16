@@ -15,4 +15,7 @@ public static class MultiaddressExtensions
 
     public static Multiaddress GetEndpointPart(this Multiaddress multiaddress)
         => multiaddress.ToEndPoint(out ProtocolType proto).ToMultiaddress(proto);
+
+    public static bool IsWebRtc(this Multiaddress addr)
+        => addr is not null && (addr.Has<WebrtcDirect>() || addr.Has<Webrtc>());
 }
