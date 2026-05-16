@@ -12,7 +12,6 @@ namespace Nethermind.Libp2p.Protocols.WebRtc.Tests;
 public class WebRtcDirectIntegrationTests
 {
     [Test]
-    [Explicit("Manual runtime smoke test for listener address publication on host WebRTC stack.")]
     public async Task ListenAsync_AnnouncesWebRtcDirectAddressWithCerthash()
     {
         WebRtcDirectProtocol protocol = new();
@@ -31,7 +30,7 @@ public class WebRtcDirectIntegrationTests
         }
         catch (Exception ex) when (ex is InvalidOperationException or TimeoutException)
         {
-            Assert.Inconclusive("Host WebRTC stack did not expose local DTLS fingerprint during listener bootstrap.");
+            Assert.Ignore("Host WebRTC stack did not expose local DTLS fingerprint during listener bootstrap.");
         }
 
         cts.Cancel();
@@ -42,7 +41,6 @@ public class WebRtcDirectIntegrationTests
     }
 
     [Test]
-    [Explicit("Manual runtime smoke test for listener cancellation path on host WebRTC stack.")]
     public async Task ListenAsync_StopsOnCancellation()
     {
         WebRtcDirectProtocol protocol = new();
@@ -70,12 +68,11 @@ public class WebRtcDirectIntegrationTests
     }
 
     [Test]
-    [Explicit("Manual end-to-end loopback for WebRTC-Direct handshake and upgrade.")]
     public async Task DialAndListen_UpgradesOnBothSides()
     {
         WebRtcDirectProtocol listenerProtocol = new();
         WebRtcDirectProtocol dialerProtocol = new();
-        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(20));
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(15));
 
         TaskCompletionSource listenerUpgrade = CreateCompletionSource();
         TaskCompletionSource dialerUpgrade = CreateCompletionSource();
@@ -97,14 +94,13 @@ public class WebRtcDirectIntegrationTests
 
         Task dialTask = dialerProtocol.DialAsync(dialerContext, listenerAddress, cts.Token);
 
-        await Task.WhenAll(listenerUpgrade.Task, dialerUpgrade.Task, dialTask).WaitAsync(TimeSpan.FromSeconds(20));
+        await Task.WhenAll(listenerUpgrade.Task, dialerUpgrade.Task, dialTask).WaitAsync(TimeSpan.FromSeconds(15));
 
         cts.Cancel();
         await Task.WhenAll(dialTask, listenerTask);
     }
 
     [Test]
-    [Explicit("Manual end-to-end loopback for fingerprint mismatch rejection.")]
     public async Task DialAndListen_RejectsWhenCerthashMismatches()
     {
         WebRtcDirectProtocol listenerProtocol = new();
@@ -123,7 +119,7 @@ public class WebRtcDirectIntegrationTests
         }
         catch (Exception ex) when (ex is InvalidOperationException or TimeoutException)
         {
-            Assert.Inconclusive("Host WebRTC stack did not expose local DTLS fingerprint during listener bootstrap.");
+            Assert.Ignore("Host WebRTC stack did not expose local DTLS fingerprint during listener bootstrap.");
             return;
         }
         Multiaddress tamperedAddress = TamperCerthash(listenerAddress);
