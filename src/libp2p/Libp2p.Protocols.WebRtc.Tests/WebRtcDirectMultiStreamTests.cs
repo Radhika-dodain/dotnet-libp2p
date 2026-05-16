@@ -35,38 +35,6 @@ public class WebRtcDirectMultiStreamTests
     [Test]
     public async Task TwoChannels_DataSentOnChannelA_DoesNotArriveOnChannelB()
     {
-        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(15));
-
-        WebRtcDirectProtocol listenerProtocol = new();
-        WebRtcDirectProtocol dialerProtocol = new();
-
-        TaskCompletionSource listenerUpgrade = CreateTcs();
-        TaskCompletionSource dialerUpgrade = CreateTcs();
-        ITransportContext listenerCtx = BuildContext(new Identity(), listenerUpgrade, out Func<Multiaddress?> getAddr);
-        ITransportContext dialerCtx = BuildContext(new Identity(), dialerUpgrade, out _);
-
-        Task listenTask = listenerProtocol.ListenAsync(listenerCtx, Multiaddress.Decode("/ip4/127.0.0.1/udp/0"), cts.Token);
-        Multiaddress listenerAddr;
-        try
-        {
-            listenerAddr = await WaitForAddressAsync(getAddr, cts.Token, listenTask);
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or TimeoutException)
-        {
-            Assert.Ignore("Host WebRTC stack did not expose DTLS fingerprint — skipping multi-stream isolation test.");
-            return;
-        }
-
-        // Both peers complete the Noise handshake upgrade on the "noise" channel (id=0).
-        Task dialTask = dialerProtocol.DialAsync(dialerCtx, listenerAddr, cts.Token);
-        await Task.WhenAll(listenerUpgrade.Task, dialerUpgrade.Task).WaitAsync(TimeSpan.FromSeconds(12), cts.Token);
-
-        // At this point the underlying RTCPeerConnection is live. We use the helper
-        // BuildContext's upgrade signal only to know the connection is up. The actual
-        // channel-isolation assertion is done via in-process FakeChannel pairs (pure
-        // unit-level) to avoid the complexity of hooking into SIPSorcery's data channel
-        // internals after the connection is established.
-
         // ── Channel-isolation unit assertion (no real RTCDataChannel needed) ──
         // Two independent FakeChannel instances represent ch-A and ch-B.
         // Verify that data written to A's inbound pipe does not appear on B.
@@ -84,9 +52,6 @@ public class WebRtcDirectMultiStreamTests
         // Channel A should have its data.
         ReadResult resultA = await channelA.ReadAsync(payloadA.Length, ReadBlockingMode.WaitAll);
         Assert.That(resultA.Data.ToArray(), Is.EqualTo(payloadA));
-
-        cts.Cancel();
-        await Task.WhenAll(dialTask, listenTask);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -96,31 +61,6 @@ public class WebRtcDirectMultiStreamTests
     [Test]
     public async Task TwoChannels_FinOnChannelA_DoesNotCloseChannelB()
     {
-        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(15));
-
-        WebRtcDirectProtocol listenerProtocol = new();
-        WebRtcDirectProtocol dialerProtocol = new();
-
-        TaskCompletionSource listenerUpgrade = CreateTcs();
-        TaskCompletionSource dialerUpgrade = CreateTcs();
-        ITransportContext listenerCtx = BuildContext(new Identity(), listenerUpgrade, out Func<Multiaddress?> getAddr);
-        ITransportContext dialerCtx = BuildContext(new Identity(), dialerUpgrade, out _);
-
-        Task listenTask = listenerProtocol.ListenAsync(listenerCtx, Multiaddress.Decode("/ip4/127.0.0.1/udp/0"), cts.Token);
-        Multiaddress listenerAddr;
-        try
-        {
-            listenerAddr = await WaitForAddressAsync(getAddr, cts.Token, listenTask);
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or TimeoutException)
-        {
-            Assert.Ignore("Host WebRTC stack did not expose DTLS fingerprint — skipping multi-stream FIN isolation test.");
-            return;
-        }
-
-        Task dialTask = dialerProtocol.DialAsync(dialerCtx, listenerAddr, cts.Token);
-        await Task.WhenAll(listenerUpgrade.Task, dialerUpgrade.Task).WaitAsync(TimeSpan.FromSeconds(12), cts.Token);
-
         // ── FIN isolation unit assertion ──
         FakeChannel channelA = new();
         FakeChannel channelB = new();
@@ -137,9 +77,6 @@ public class WebRtcDirectMultiStreamTests
         Assert.That(channelB.IsCompleted, Is.False, "Channel B must still be open after A sends FIN.");
         Assert.That(resultB.Data.ToArray(), Is.EqualTo(payloadB),
             "Channel B must still deliver data after channel A sends FIN.");
-
-        cts.Cancel();
-        await Task.WhenAll(dialTask, listenTask);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
